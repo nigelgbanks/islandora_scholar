@@ -346,6 +346,47 @@ abstract class IslandoraScholarImportObject {
           l($pid, "fedora/repository/$pid"),
         );
       }
+      // Convert the source to custom data.
+      $end_note = new SimpleXMLElement($this->source);
+      $xml = <<<EOT
+      <spms>
+         <REPORT_NUMBER>LBNL-$pid</REPORT_NUMBER>
+         <TAG>jbei-curated</TAG>
+         <KEYWORDS>jbei-curated</KEYWORDS>
+     </spms>
+EOT;
+      $spms = new SimpleXMLElement($xml);
+      $custom2 = $end_note->records->record->custom2[0];
+      if (is_object($custom2)) {
+        $groups = (string) reset($custom2->xpath('descendant-or-self::text()[normalize-space()]'));
+        $groups = explode(',', $groups);
+        array_unshift($groups, 'JBEI');
+        foreach ($groups as &$group) {
+          $group = trim($group);
+          $spms->LBNL_GROUP[] = $group;
+        }
+        $spms->ALL_GROUPS = implode(', ', $groups);
+      }
+      $obtained_spms = $spms->asXML();
+      if ($obtained_spms) {
+        $added_spms = $item->add_datastream_from_string($obtained_spms, 'SPMS', 'SPMS Record', 'text/xml', 'X');
+        if (!$added_spms) {
+          $to_return[] = array(
+            t('Failed to upload SPMS to @pid in Fedora.'),
+            array('@pid' => $pid),
+            WATCHDOG_DEBUG,
+            l($pid, "fedora/repository/$pid"),
+          );
+        }
+      }
+      else {
+        $to_return[] = array(
+          t('Failed to produce SPMS for @pid.'),
+          array('@pid' => $pid),
+          WATCHDOG_DEBUG,
+          l($pid, "fedora/repository/$pid"),
+        );
+      }
 
       //Ingest the DC second (
       $obtained_dc = $this->get_dc();
